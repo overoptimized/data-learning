@@ -19,7 +19,37 @@ def clean_title(title: str) -> str:
     title = title.strip()
     title = re.sub(r'[^\w\s-]', '', title)
     title = re.sub(r'[-\s]+', '_', title)
-    return title.strip('_')
+    return title
+
+def should_fast_skip(url, existing_folders):
+    """
+    Fuzzy maps a URL to an existing folder to check if video.mp4 is already downloaded.
+    This allows us to skip visiting the page entirely.
+    """
+    slug = url.rstrip('/').split('/')[-1]
+    
+    # 1. Try exact prefix match
+    for folder in existing_folders:
+        norm_folder = folder.lower().replace('_', '-')
+        if slug.startswith(norm_folder):
+            video_output = os.path.join(OUTPUT_DIR, folder, "video.mp4")
+            if os.path.exists(video_output) and os.path.getsize(video_output) > 1024:
+                return True
+                
+    # 2. Try heuristic prefix match (strip known date/id suffixes)
+    clean_slug = re.sub(r'-(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\d{4}.*$', '', slug)
+    clean_slug = re.sub(r'-\d{4}$', '', clean_slug)
+    clean_slug = re.sub(r'-yt-p\d+.*$', '', clean_slug)
+    
+    clean_slug = clean_slug.replace('-', '_').lower()
+    
+    for folder in existing_folders:
+        if clean_slug and clean_slug in folder.lower():
+            video_output = os.path.join(OUTPUT_DIR, folder, "video.mp4")
+            if os.path.exists(video_output) and os.path.getsize(video_output) > 1024:
+                return True
+                
+    return False
 
 def process_url(page, url: str):
     console.print(f"[bold blue]Processing URL:[/bold blue] {url}")
@@ -264,6 +294,23 @@ def main():
         
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     
+    # Fast skip pre-check
+    existing_folders = [f for f in os.listdir(OUTPUT_DIR) if os.path.isdir(os.path.join(OUTPUT_DIR, f))]
+    filtered_urls = []
+    
+    console.print("[cyan]Pre-checking URLs to skip already downloaded videos...[/cyan]")
+    for url in urls:
+        if should_fast_skip(url, existing_folders):
+            console.print(f"[dim]Fast-skipped (already downloaded): {url}[/dim]")
+        else:
+            filtered_urls.append(url)
+            
+    if not filtered_urls:
+        console.print("[bold green]All URLs have already been downloaded! Nothing to do.[/bold green]")
+        return
+        
+    console.print(f"[bold green]Starting processing for {len(filtered_urls)} remaining URLs...[/bold green]")
+    
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
@@ -285,7 +332,7 @@ def main():
         
         previous_was_skipped = False
         
-        for idx, url in enumerate(urls):
+        for idx, url in enumerate(filtered_urls):
             if idx > 0:
                 if previous_was_skipped:
                     delay = random.uniform(2.0, 5.0)
