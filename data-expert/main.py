@@ -4,6 +4,7 @@ import json
 import subprocess
 import time
 import random
+from datetime import datetime
 from urllib.parse import urlparse
 from playwright.sync_api import sync_playwright, Request
 from playwright_stealth import Stealth
@@ -108,11 +109,34 @@ def process_url(page, url: str):
         
         console.print(f"[cyan]Starting stealth video download via Playwright...[/cyan]")
         try:
-            # Filter out pseudo-headers that Playwright doesn't allow
-            clean_headers = {k: v for k, v in m3u8_headers.items() if not k.startswith(':')}
+            # Filter out pseudo-headers that Playwright doesn't allow and forcibly spoof sec-ch-ua
+            clean_headers = {}
+            for k, v in m3u8_headers.items():
+                if k.startswith(':'):
+                    continue
+                # Strip out any existing sec-ch-ua headers that might be leaking 'HeadlessChrome'
+                if k.lower() in ['sec-ch-ua', 'sec-ch-ua-mobile', 'sec-ch-ua-platform']:
+                    continue
+                clean_headers[k] = v
+                
+            # Explicitly add the spoofed Chrome headers
+            clean_headers['sec-ch-ua'] = '"Google Chrome";v="120", "Chromium";v="120", "Not?A_Brand";v="24"'
+            clean_headers['sec-ch-ua-mobile'] = '?0'
+            clean_headers['sec-ch-ua-platform'] = '"Windows"'
             
-            # 1. Fetch manifest directly through the browser context (bypasses WAF)
-            manifest_res = page.request.get(intercepted_m3u8, headers=clean_headers)
+            # 1. Fetch manifest directly through the browser context with retries
+            manifest_res = None
+            for attempt in range(5):
+                try:
+                    manifest_res = page.request.get(intercepted_m3u8, headers=clean_headers, timeout=15000)
+                    if manifest_res.ok:
+                        break
+                except Exception as e:
+                    time.sleep(1)
+            
+            if not manifest_res or not manifest_res.ok:
+                raise Exception("Failed to fetch primary manifest")
+                
             manifest_text = manifest_res.text()
             
             # Extract segment URLs
@@ -132,7 +156,19 @@ def process_url(page, url: str):
             if segment_urls and ".m3u8" in segment_urls[0]:
                 console.print("[cyan]Master playlist detected. Fetching media playlist...[/cyan]")
                 media_m3u8 = segment_urls[0]
-                manifest_res = page.request.get(media_m3u8, headers=clean_headers)
+                
+                manifest_res = None
+                for attempt in range(5):
+                    try:
+                        manifest_res = page.request.get(media_m3u8, headers=clean_headers, timeout=15000)
+                        if manifest_res.ok:
+                            break
+                    except Exception as e:
+                        time.sleep(1)
+                        
+                if not manifest_res or not manifest_res.ok:
+                    raise Exception("Failed to fetch media playlist")
+                    
                 manifest_text = manifest_res.text()
                 lines = manifest_text.splitlines()
                 segment_urls = []
@@ -148,6 +184,7 @@ def process_url(page, url: str):
             console.print(f"[cyan]Found {len(segment_urls)} video fragments. Downloading...[/cyan]")
             
             # Download segments and append to video.mp4
+            total_bytes = 0
             with open(video_output, 'wb') as f:
                 for i, seg_url in enumerate(segment_urls):
                     # Retries for individual segments
@@ -155,9 +192,13 @@ def process_url(page, url: str):
                         try:
                             seg_res = page.request.get(seg_url, headers=clean_headers, timeout=15000)
                             if seg_res.ok:
-                                f.write(seg_res.body())
+                                body = seg_res.body()
+                                f.write(body)
+                                total_bytes += len(body)
                                 if (i + 1) % 10 == 0 or i == len(segment_urls) - 1:
-                                    console.print(f"Downloaded {i + 1}/{len(segment_urls)} fragments...")
+                                    ts = datetime.now().strftime('%H:%M:%S')
+                                    mb_so_far = total_bytes / (1024 * 1024)
+                                    console.print(f"[{ts}] Downloaded {i + 1}/{len(segment_urls)} fragments... ({mb_so_far:.2f} MB)")
                                 break
                             else:
                                 time.sleep(1)
@@ -232,7 +273,12 @@ def main():
         context = browser.new_context(
             storage_state="state.json",
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            viewport={"width": random.randint(1280, 1920), "height": random.randint(720, 1080)}
+            viewport={"width": random.randint(1280, 1920), "height": random.randint(720, 1080)},
+            extra_http_headers={
+                "sec-ch-ua": '"Google Chrome";v="120", "Chromium";v="120", "Not?A_Brand";v="24"',
+                "sec-ch-ua-mobile": "?0",
+                "sec-ch-ua-platform": '"Windows"'
+            }
         )
         page = context.new_page()
         Stealth().apply_stealth_sync(page) # Apply stealth techniques to the page
