@@ -2,8 +2,11 @@ import os
 import re
 import json
 import subprocess
+import time
+import random
 from urllib.parse import urlparse
 from playwright.sync_api import sync_playwright, Request
+from playwright_stealth import stealth_sync
 from rich.console import Console
 
 console = Console()
@@ -22,15 +25,19 @@ def process_url(page, url: str):
     
     # Storage for intercepted media
     intercepted_m3u8 = None
+    m3u8_headers = {}
     intercepted_vtt = None
+    intercepted_pdfs = set()
     
     def handle_request(request: Request):
-        nonlocal intercepted_m3u8, intercepted_vtt
+        nonlocal intercepted_m3u8, m3u8_headers, intercepted_vtt, intercepted_pdfs
         req_url = request.url
         if ".m3u8" in req_url and not intercepted_m3u8:
             intercepted_m3u8 = req_url
+            m3u8_headers = request.all_headers()
         if ("/transcripts" in req_url or ".vtt" in req_url) and not intercepted_vtt:
-            intercepted_vtt = req_url
+        if (".pdf" in req_url) and req_url not in intercepted_pdfs:
+            intercepted_pdfs.add(req_url)
             
     page.on("request", handle_request)
     
@@ -89,25 +96,64 @@ def process_url(page, url: str):
     else:
         console.print("[yellow]No transcript intercepted.[/yellow]")
 
-    # Download Media using yt-dlp
+    # Download Media using yt-dlp (checking for redownloads first)
+    video_output = os.path.join(lesson_dir, "video.mp4")
+    if os.path.exists(video_output) and os.path.getsize(video_output) > 1024:
+        console.print("[green]Video already exists locally. Skipping download to save time.[/green]")
+        intercepted_m3u8 = None  # Clear to prevent download
+        
     if intercepted_m3u8:
         console.print(f"[bold yellow]Intercepted video manifest:[/bold yellow] {intercepted_m3u8}")
-        video_output = os.path.join(lesson_dir, "video.mp4")
         
-        # Note: If the stream requires the session cookies, you may need to pass them to yt-dlp.
-        # This implementation tries without passing cookies first.
-        # To pass cookies to yt-dlp, you might need to extract them from Playwright context.
+        # Pass the captured headers (including cookies and auth tokens) from Playwright to yt-dlp
         yt_dlp_cmd = [
             "yt-dlp",
             intercepted_m3u8,
-            "-o", video_output
+            "-o", video_output,
+            "--limit-rate", "1M",            # Limit download to 1 MB/s to prevent flooding
+            "--sleep-requests", "0.5",       # Sleep 0.5 seconds between fragment requests
+            "--concurrent-fragments", "1",   # Only download 1 fragment at a time
+            "--retries", "10",               # Automatically retry failed fragments
         ]
+        
+        for key, value in m3u8_headers.items():
+            # Skip pseudo-headers like :authority, :method, etc. that yt-dlp doesn't like
+            if not key.startswith(':'):
+                yt_dlp_cmd.extend(["--add-header", f"{key}:{value}"])
         
         console.print("Starting video download via yt-dlp...")
         subprocess.run(yt_dlp_cmd)
         console.print("[green]Video download completed.[/green]")
     else:
-        console.print("[yellow]No video stream intercepted.[/yellow]")
+        console.print("[yellow]No video stream intercepted or download skipped.[/yellow]")
+
+    # Download PDFs from DOM anchor tags
+    pdf_links = page.locator("a[href*='.pdf']").element_handles()
+    for link in pdf_links:
+        pdf_href = link.get_attribute("href")
+        if pdf_href:
+            full_pdf_url = urlparse(pdf_href)._replace(netloc=urlparse(url).netloc).geturl() if pdf_href.startswith("/") else pdf_href
+            intercepted_pdfs.add(full_pdf_url)
+            
+    # Process all collected PDFs
+    for idx, pdf_url in enumerate(intercepted_pdfs):
+        pdf_name = pdf_url.split("/")[-1].split("?")[0]
+        if not pdf_name.endswith(".pdf"):
+            pdf_name = f"slide_or_doc_{idx+1}.pdf"
+        
+        pdf_output = os.path.join(lesson_dir, pdf_name)
+        if os.path.exists(pdf_output) and os.path.getsize(pdf_output) > 0:
+            console.print(f"[green]PDF {pdf_name} already exists. Skipping.[/green]")
+            continue
+            
+        console.print(f"[bold yellow]Downloading PDF:[/bold yellow] {pdf_url}")
+        try:
+            pdf_res = page.request.get(pdf_url)
+            with open(pdf_output, "wb") as f:
+                f.write(pdf_res.body())
+            console.print(f"[green]Saved {pdf_name}[/green]")
+        except Exception as e:
+            console.print(f"[red]Failed to download PDF {pdf_url}: {e}[/red]")
 
     page.remove_listener("request", handle_request)
     console.print(f"[bold green]Finished processing {url}[/bold green]\n")
@@ -132,12 +178,25 @@ def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        # Load the saved session state
-        context = browser.new_context(storage_state="state.json")
+        browser = p.chromium.launch(
+            headless=True,
+            args=["--disable-blink-features=AutomationControlled"]
+        )
+        # Load the saved session state, override the user agent, and randomize viewport
+        context = browser.new_context(
+            storage_state="state.json",
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            viewport={"width": random.randint(1280, 1920), "height": random.randint(720, 1080)}
+        )
         page = context.new_page()
+        stealth_sync(page) # Apply stealth techniques to the page
         
-        for url in urls:
+        for idx, url in enumerate(urls):
+            if idx > 0:
+                delay = random.uniform(15.0, 35.0)
+                console.print(f"[cyan]Sleeping for {delay:.2f} seconds before next lesson to behave like a human...[/cyan]")
+                time.sleep(delay)
+                
             process_url(page, url)
             
         browser.close()
