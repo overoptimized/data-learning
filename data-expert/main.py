@@ -106,28 +106,67 @@ def process_url(page, url: str):
     if intercepted_m3u8:
         console.print(f"[bold yellow]Intercepted video manifest:[/bold yellow] {intercepted_m3u8}")
         
-        # Pass the captured headers (including cookies and auth tokens) from Playwright to yt-dlp
-        yt_dlp_cmd = [
-            "yt-dlp",
-            intercepted_m3u8,
-            "-o", video_output,
-            "--limit-rate", "1M",
-            "--sleep-requests", "0.5",
-            "--concurrent-fragments", "1",
-            "--retries", "10",
-            "--extractor-retries", "10",     # Retry on manifest/extractor errors
-            "--fragment-retries", "10",      # Retry on fragment errors
-            "--retry-sleep", "5",            # Wait 5 seconds between retries
-        ]
-        
-        for key, value in m3u8_headers.items():
-            # Skip pseudo-headers like :authority, :method, etc. that yt-dlp doesn't like
-            if not key.startswith(':'):
-                yt_dlp_cmd.extend(["--add-header", f"{key}:{value}"])
-        
-        console.print("Starting video download via yt-dlp...")
-        subprocess.run(yt_dlp_cmd)
-        console.print("[green]Video download completed.[/green]")
+        console.print(f"[cyan]Starting stealth video download via Playwright...[/cyan]")
+        try:
+            # Filter out pseudo-headers that Playwright doesn't allow
+            clean_headers = {k: v for k, v in m3u8_headers.items() if not k.startswith(':')}
+            
+            # 1. Fetch manifest directly through the browser context (bypasses WAF)
+            manifest_res = page.request.get(intercepted_m3u8, headers=clean_headers)
+            manifest_text = manifest_res.text()
+            
+            # Extract segment URLs
+            lines = manifest_text.splitlines()
+            segment_urls = []
+            base_url = intercepted_m3u8.rsplit('/', 1)[0] + '/'
+            
+            for line in lines:
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    if line.startswith('http'):
+                        segment_urls.append(line)
+                    else:
+                        segment_urls.append(base_url + line)
+                        
+            # Handle Master Playlists (if the m3u8 just points to another m3u8)
+            if segment_urls and ".m3u8" in segment_urls[0]:
+                console.print("[cyan]Master playlist detected. Fetching media playlist...[/cyan]")
+                media_m3u8 = segment_urls[0]
+                manifest_res = page.request.get(media_m3u8, headers=clean_headers)
+                manifest_text = manifest_res.text()
+                lines = manifest_text.splitlines()
+                segment_urls = []
+                base_url = media_m3u8.rsplit('/', 1)[0] + '/'
+                for line in lines:
+                    line = line.strip()
+                    if line and not line.startswith('#'):
+                        if line.startswith('http'):
+                            segment_urls.append(line)
+                        else:
+                            segment_urls.append(base_url + line)
+            
+            console.print(f"[cyan]Found {len(segment_urls)} video fragments. Downloading...[/cyan]")
+            
+            # Download segments and append to video.mp4
+            with open(video_output, 'wb') as f:
+                for i, seg_url in enumerate(segment_urls):
+                    # Retries for individual segments
+                    for attempt in range(5):
+                        try:
+                            seg_res = page.request.get(seg_url, headers=clean_headers, timeout=15000)
+                            if seg_res.ok:
+                                f.write(seg_res.body())
+                                if (i + 1) % 10 == 0 or i == len(segment_urls) - 1:
+                                    console.print(f"Downloaded {i + 1}/{len(segment_urls)} fragments...")
+                                break
+                            else:
+                                time.sleep(1)
+                        except Exception as e:
+                            time.sleep(1)
+                            
+            console.print("[green]Video download completed successfully.[/green]")
+        except Exception as e:
+            console.print(f"[bold red]Download failed: {e}[/bold red]")
     else:
         console.print("[yellow]No video stream intercepted or download skipped.[/yellow]")
 
@@ -161,6 +200,9 @@ def process_url(page, url: str):
 
     page.remove_listener("request", handle_request)
     console.print(f"[bold green]Finished processing {url}[/bold green]\n")
+    
+    # Return True if we skipped the video download to allow for a shorter sleep
+    return intercepted_m3u8 is None
 
 
 def main():
@@ -195,13 +237,19 @@ def main():
         page = context.new_page()
         Stealth().apply_stealth_sync(page) # Apply stealth techniques to the page
         
+        previous_was_skipped = False
+        
         for idx, url in enumerate(urls):
             if idx > 0:
-                delay = random.uniform(15.0, 35.0)
-                console.print(f"[cyan]Sleeping for {delay:.2f} seconds before next lesson to behave like a human...[/cyan]")
+                if previous_was_skipped:
+                    delay = random.uniform(2.0, 5.0)
+                    console.print(f"[cyan]Video was skipped. Short sleeping for {delay:.2f} seconds before next lesson...[/cyan]")
+                else:
+                    delay = random.uniform(15.0, 35.0)
+                    console.print(f"[cyan]Sleeping for {delay:.2f} seconds before next lesson to behave like a human...[/cyan]")
                 time.sleep(delay)
                 
-            process_url(page, url)
+            previous_was_skipped = process_url(page, url)
             
         browser.close()
 
