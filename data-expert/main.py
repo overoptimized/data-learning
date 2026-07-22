@@ -28,23 +28,19 @@ def should_fast_skip(url, existing_folders):
     """
     slug = url.rstrip('/').split('/')[-1]
     
-    # 1. Try exact prefix match
-    for folder in existing_folders:
-        norm_folder = folder.lower().replace('_', '-')
-        if slug.startswith(norm_folder):
-            video_output = os.path.join(OUTPUT_DIR, folder, "video.mp4")
-            if os.path.exists(video_output) and os.path.getsize(video_output) > 1024:
-                return True
-                
-    # 2. Try heuristic prefix match (strip known date/id suffixes)
+    # Try heuristic prefix match (strip known date/id suffixes)
     clean_slug = re.sub(r'-(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\d{4}.*$', '', slug)
     clean_slug = re.sub(r'-\d{4}$', '', clean_slug)
     clean_slug = re.sub(r'-yt-p\d+.*$', '', clean_slug)
     
-    clean_slug = clean_slug.replace('-', '_').lower()
+    # Strip all non-alphanumeric characters for robust fuzzy matching
+    clean_slug = re.sub(r'[\W_]+', '', clean_slug.lower())
     
     for folder in existing_folders:
-        if clean_slug and clean_slug in folder.lower():
+        clean_folder = re.sub(r'[\W_]+', '', folder.lower())
+        clean_folder = re.sub(r'copy$', '', clean_folder) # Handle random "_Copy" folder names
+        
+        if clean_slug == clean_folder or clean_slug.startswith(clean_folder) or clean_folder.startswith(clean_slug):
             video_output = os.path.join(OUTPUT_DIR, folder, "video.mp4")
             if os.path.exists(video_output) and os.path.getsize(video_output) > 1024:
                 return True
