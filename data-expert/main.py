@@ -36,6 +36,7 @@ def process_url(page, url: str):
             intercepted_m3u8 = req_url
             m3u8_headers = request.all_headers()
         if ("/transcripts" in req_url or ".vtt" in req_url) and not intercepted_vtt:
+            intercepted_vtt = req_url
         if (".pdf" in req_url) and req_url not in intercepted_pdfs:
             intercepted_pdfs.add(req_url)
             
