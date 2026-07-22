@@ -6,7 +6,7 @@ import time
 import random
 from urllib.parse import urlparse
 from playwright.sync_api import sync_playwright, Request
-from playwright_stealth import stealth_sync
+from playwright_stealth import Stealth
 from rich.console import Console
 
 console = Console()
@@ -190,7 +190,7 @@ def main():
             viewport={"width": random.randint(1280, 1920), "height": random.randint(720, 1080)}
         )
         page = context.new_page()
-        stealth_sync(page) # Apply stealth techniques to the page
+        Stealth().apply_stealth_sync(page) # Apply stealth techniques to the page
         
         for idx, url in enumerate(urls):
             if idx > 0:
