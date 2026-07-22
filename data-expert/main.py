@@ -111,10 +111,13 @@ def process_url(page, url: str):
             "yt-dlp",
             intercepted_m3u8,
             "-o", video_output,
-            "--limit-rate", "1M",            # Limit download to 1 MB/s to prevent flooding
-            "--sleep-requests", "0.5",       # Sleep 0.5 seconds between fragment requests
-            "--concurrent-fragments", "1",   # Only download 1 fragment at a time
-            "--retries", "10",               # Automatically retry failed fragments
+            "--limit-rate", "1M",
+            "--sleep-requests", "0.5",
+            "--concurrent-fragments", "1",
+            "--retries", "10",
+            "--extractor-retries", "10",     # Retry on manifest/extractor errors
+            "--fragment-retries", "10",      # Retry on fragment errors
+            "--retry-sleep", "5",            # Wait 5 seconds between retries
         ]
         
         for key, value in m3u8_headers.items():
