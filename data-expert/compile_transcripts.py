@@ -6,10 +6,7 @@ OUTPUT_DIR = "local_library"
 MASTER_DIR = os.path.join(OUTPUT_DIR, "Master_Transcripts")
 
 def get_course_name(folder_name):
-    """Extract course name by dropping _Day_ or _Week_ suffixes."""
-    match = re.search(r'_(Day|Week|yt_p)', folder_name, re.IGNORECASE)
-    if match:
-        return folder_name[:match.start()]
+    # No longer needed, we use the actual course folder name
     return folder_name
 
 def natural_sort_key(s):
@@ -52,20 +49,24 @@ def main():
     courses = defaultdict(list)
     
     # Read all transcripts
-    for item in os.listdir(OUTPUT_DIR):
-        item_path = os.path.join(OUTPUT_DIR, item)
-        if not os.path.isdir(item_path) or item == "Master_Transcripts":
+    for course_folder in os.listdir(OUTPUT_DIR):
+        course_path = os.path.join(OUTPUT_DIR, course_folder)
+        if not os.path.isdir(course_path) or course_folder == "Master_Transcripts":
             continue
             
-        transcript_path = os.path.join(item_path, "transcript.vtt")
-        if os.path.exists(transcript_path):
-            with open(transcript_path, 'r', encoding='utf-8') as f:
-                content = f.read()
+        for lesson_folder in os.listdir(course_path):
+            lesson_path = os.path.join(course_path, lesson_folder)
+            if not os.path.isdir(lesson_path):
+                continue
                 
-            clean_text = strip_vtt(content)
-            if clean_text:
-                course_name = get_course_name(item)
-                courses[course_name].append((item, clean_text))
+            transcript_path = os.path.join(lesson_path, "transcript.vtt")
+            if os.path.exists(transcript_path):
+                with open(transcript_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                    
+                clean_text = strip_vtt(content)
+                if clean_text:
+                    courses[course_folder].append((lesson_folder, clean_text))
                 
     # Generate Markdown files
     for course, lessons in courses.items():

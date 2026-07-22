@@ -12,7 +12,7 @@ from rich.console import Console
 
 console = Console()
 
-OUTPUT_DIR = "local_library"
+BASE_LIBRARY_DIR = "local_library"
 
 def clean_title(title: str) -> str:
     """Clean the title to generate a safe folder name."""
@@ -21,7 +21,7 @@ def clean_title(title: str) -> str:
     title = re.sub(r'[-\s]+', '_', title)
     return title
 
-def should_fast_skip(url, existing_folders):
+def should_fast_skip(url, existing_folders, output_dir):
     """
     Fuzzy maps a URL to an existing folder to check if video.mp4 is already downloaded.
     This allows us to skip visiting the page entirely.
@@ -41,13 +41,13 @@ def should_fast_skip(url, existing_folders):
         clean_folder = re.sub(r'copy$', '', clean_folder) # Handle random "_Copy" folder names
         
         if clean_slug == clean_folder or clean_slug.startswith(clean_folder) or clean_folder.startswith(clean_slug):
-            video_output = os.path.join(OUTPUT_DIR, folder, "video.mp4")
+            video_output = os.path.join(output_dir, folder, "video.mp4")
             if os.path.exists(video_output) and os.path.getsize(video_output) > 1024:
                 return True
                 
     return False
 
-def process_url(page, url: str):
+def process_url(page, url: str, output_dir: str):
     console.print(f"[bold blue]Processing URL:[/bold blue] {url}")
     
     # Storage for intercepted media
@@ -79,36 +79,36 @@ def process_url(page, url: str):
         return
 
     # Scrape DOM for title and notes
-    try:
-        title_element = page.locator("h1").first
-        raw_title = title_element.inner_text() if title_element.count() > 0 else "Untitled Lesson"
-    except Exception:
-        raw_title = "Untitled Lesson"
+    h1_element = page.locator("h1").first
+    if not (h1_element.count() > 0):
+        console.print("[red]Could not find h1 title on the page.[/red]")
+        # fallback folder name
+        title_text = url.rstrip('/').split('/')[-1]
+    else:
+        title_text = h1_element.inner_text()
         
-    folder_name = clean_title(raw_title)
+    folder_name = clean_title(title_text)
     if not folder_name:
         folder_name = "Untitled_Lesson"
         
-    lesson_dir = os.path.join(OUTPUT_DIR, folder_name)
+    lesson_dir = os.path.join(output_dir, folder_name)
+    console.print(f"[green]Creating directory:[/green] {lesson_dir}")
     os.makedirs(lesson_dir, exist_ok=True)
-    
-    console.print(f"Creating directory: [bold green]{lesson_dir}[/bold green]")
     
     try:
         # Scrape main text content for notes. Adjust the selector to match the site structure.
         main_content = page.locator("main").first
-        notes_text = main_content.inner_text() if main_content.count() > 0 else "No notes found."
-    except Exception:
-        notes_text = "No notes found."
+        notes_text = main_content.inner_text() if main_content.count() > 0 else ""
         
-    # Attempt to extract badges/topics as YAML frontmatter
-    badges = page.locator(".badge, [class*='badge']").all_inner_texts()
-    tags = [badge.strip() for badge in badges if badge.strip()]
-    
-    notes_content = f"---\ntags: {json.dumps(tags)}\n---\n\n# {raw_title}\n\n{notes_text}"
-    
-    with open(os.path.join(lesson_dir, "notes.md"), "w", encoding="utf-8") as f:
-        f.write(notes_content)
+        # Scrape tags for frontmatter
+        tag_elements = page.locator(".tag, .badge").element_handles()
+        tags = [t.inner_text() for t in tag_elements]
+        
+        notes_content = f"---\ntags: {json.dumps(tags)}\n---\n\n# {title_text}\n\n{notes_text}"
+        with open(os.path.join(lesson_dir, "notes.md"), "w", encoding="utf-8") as f:
+            f.write(notes_content)
+    except Exception:
+        pass
         
     # Download Transcript if intercepted
     if intercepted_vtt:
@@ -272,47 +272,63 @@ def process_url(page, url: str):
     return intercepted_m3u8 is None
 
 
-def main():
-    if not os.path.exists("state.json"):
-        console.print("[bold red]Error:[/bold red] state.json not found! Please run auth_setup.py first.")
-        return
-        
-    if not os.path.exists("urls.txt"):
-        console.print("[bold red]Error:[/bold red] urls.txt not found. Create it and add target URLs.")
-        return
-        
-    with open("urls.txt", "r", encoding="utf-8") as f:
-        urls = [line.strip() for line in f if line.strip() and not line.startswith("#")]
-        
-    if not urls:
-        console.print("[yellow]No URLs found in urls.txt[/yellow]")
-        return
-        
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+def process_course(page, urls, course_name):
+    output_dir = os.path.join(BASE_LIBRARY_DIR, course_name)
+    os.makedirs(output_dir, exist_ok=True)
     
     # Fast skip pre-check
-    existing_folders = [f for f in os.listdir(OUTPUT_DIR) if os.path.isdir(os.path.join(OUTPUT_DIR, f))]
+    existing_folders = [f for f in os.listdir(output_dir) if os.path.isdir(os.path.join(output_dir, f))]
     filtered_urls = []
     
+    console.print(f"\n[bold magenta]--- Processing Course: {course_name} ---[/bold magenta]")
     console.print("[cyan]Pre-checking URLs to skip already downloaded videos...[/cyan]")
     for url in urls:
-        if should_fast_skip(url, existing_folders):
+        if should_fast_skip(url, existing_folders, output_dir):
             console.print(f"[dim]Fast-skipped (already downloaded): {url}[/dim]")
         else:
             filtered_urls.append(url)
             
     if not filtered_urls:
-        console.print("[bold green]All URLs have already been downloaded! Nothing to do.[/bold green]")
+        console.print(f"[bold green]All URLs for {course_name} have already been downloaded![/bold green]")
         return
         
     console.print(f"[bold green]Starting processing for {len(filtered_urls)} remaining URLs...[/bold green]")
     
+    previous_was_skipped = False
+    
+    for idx, url in enumerate(filtered_urls):
+        if idx > 0:
+            if previous_was_skipped:
+                delay = random.uniform(2.0, 5.0)
+                console.print(f"[cyan]Video was skipped. Short sleeping for {delay:.2f} seconds before next lesson...[/cyan]")
+            else:
+                delay = random.uniform(15.0, 35.0)
+                console.print(f"[cyan]Sleeping for {delay:.2f} seconds before next lesson to behave like a human...[/cyan]")
+            time.sleep(delay)
+            
+        previous_was_skipped = process_url(page, url, output_dir)
+
+def main():
+    if not os.path.exists("state.json"):
+        console.print("[bold red]Error:[/bold red] state.json not found! Please run auth_setup.py first.")
+        return
+        
+    # Find all urls_*.txt files
+    url_files = [f for f in os.listdir('.') if f.startswith('urls_') and f.endswith('.txt')]
+    
+    if not url_files:
+        # Fallback to urls.txt if urls_*.txt doesn't exist
+        if os.path.exists("urls.txt"):
+            url_files = ["urls.txt"]
+        else:
+            console.print("[bold red]Error:[/bold red] No urls_*.txt files found. Run fetch_urls.py first.")
+            return
+
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
             args=["--disable-blink-features=AutomationControlled"]
         )
-        # Load the saved session state, override the user agent, and randomize viewport
         context = browser.new_context(
             storage_state="state.json",
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -324,21 +340,23 @@ def main():
             }
         )
         page = context.new_page()
-        Stealth().apply_stealth_sync(page) # Apply stealth techniques to the page
+        Stealth().apply_stealth_sync(page)
         
-        previous_was_skipped = False
-        
-        for idx, url in enumerate(filtered_urls):
-            if idx > 0:
-                if previous_was_skipped:
-                    delay = random.uniform(2.0, 5.0)
-                    console.print(f"[cyan]Video was skipped. Short sleeping for {delay:.2f} seconds before next lesson...[/cyan]")
-                else:
-                    delay = random.uniform(15.0, 35.0)
-                    console.print(f"[cyan]Sleeping for {delay:.2f} seconds before next lesson to behave like a human...[/cyan]")
-                time.sleep(delay)
+        for url_file in url_files:
+            course_slug = url_file.replace('urls_', '').replace('.txt', '')
+            if course_slug == 'urls':
+                course_slug = 'default_course'
+            
+            # Convert slug to nice folder name (e.g. ai-expert -> Ai_Expert)
+            course_name = course_slug.replace('-', '_').title()
+            
+            with open(url_file, "r", encoding="utf-8") as f:
+                urls = [line.strip() for line in f if line.strip() and not line.startswith("#")]
                 
-            previous_was_skipped = process_url(page, url)
+            if not urls:
+                continue
+                
+            process_course(page, urls, course_name)
             
         browser.close()
 

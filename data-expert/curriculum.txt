@@ -1,0 +1,279 @@
+1
+Kickoff
+5 Lessons
+•
+1h 48m
+Lessons
+Bootcamp Kickoff
+20m
+Boot Camp Database Setup
+20m
+January 2025 Bootcamp Kickoff
+Databricks Boot Camp Kickoff
+Capstone Project Brainstorming
+67m
+
+2
+Week 1: Databricks Basics
+6 Lessons
+•
+2h 38m
+1 Assignment
+Lessons
+Databricks Platform Overview Day 1 Lecture
+31m
+Databricks Platform Overview Day 1 Lab
+20m
+Introduction to Spark Day 2 Lecture
+15m
+Introduction to Spark Day 2 Lab
+44m
+Apache Spark Core Day 3 Lecture
+21m
+Apache Spark Core Day 3 Lab
+25m
+Assignments
+Databricks Notebook Submission January 2025
+
+3
+Week 2: Databricks & Advanced Spark
+11 Lessons
+•
+7h 5m
+3 Assignments
+Lessons
+Apache Spark Shuffle Joins Day 1 Lecture
+40m
+Apache Spark Memory Turning, Partitioning Day 2 Lecture
+38m
+Apache Spark Memory Turning, Partitioning Day 2 Lab
+31m
+Apache Spark Unit Testing Day 3 Lecture
+Apache Spark Unit Testing Day 3 Lab
+35m
+Setting Up CI/CD and Unit Testing in Databricks for Reliable Data Pipelines
+46m
+Databricks and Advanced Spark Day1 Lecture
+49m
+Databricks and Advanced Spark Day1 Lab
+46m
+Databricks and Advanced Spark Day2 Lecture
+52m
+Databricks and Advanced Spark Day2 Lab
+49m
+Apache Spark Shuffle Joins Day 1 Lab
+34m
+Assignments
+Advanced Spark on Databricks
+Optimize the broken pipeline
+Advanced Spark on Databricks January 2025
+
+4
+Week 3: Data Lakes with Delta Table
+9 Lessons
+•
+5h 33m
+2 Assignments
+Lessons
+Delta Table Day 1 Lecture
+51m
+Delta Table Day 1 Lab
+54m
+Delta Lake Bonus
+25m
+Delta Table Day 2 Lecture
+Delta Table Day 2 Lab
+Data Lakes with Delta Table Day1 Lecture
+51m
+Data Lakes with Delta Table Day1 Lab
+47m
+Data Lakes with Delta Table Day2 Lecture
+50m
+Data Lakes with Delta Table Day2 Lab
+53m
+Assignments
+Delta Lake Assignment Week 2
+Delta Table Bug Fixes
+
+5
+Week 4: Structured Streaming with Spark & Kafka
+15 Lessons
+•
+6h 35m
+3 Assignments
+Lessons
+Apache Spark programming with Databricks Day 1 Lecture
+Apache Spark programming with Databricks Day 1 Lab
+Apache Spark programming with Databricks Day 2 Lecture
+Apache Spark programming with Databricks Day 2 Lab
+46m
+Structured Streaming Kafka to Delta Live Table Day1 Lecture
+59m
+Structured Streaming Kafka to Delta Live Table Day1 Lab
+48m
+Structured Streaming Kafka to Delta Live Table Day2 Lecture
+62m
+Structured Streaming Kafka to Delta Live Table Day2 Lab
+40m
+Exploring UDFs and SQL Benchmarks in Spark Streaming
+6m
+Advanced Spark Optimization Techniques Day 1 Lecture
+19m
+Advanced Spark Optimization Techniques Day 1 Lab
+25m
+Spark Structured Streaming Day 2 Lecture
+19m
+Spark Structured Streaming Day 2 Lab
+30m
+Deep Dive On Workflows Day 3 Lecture
+10m
+Deep Dive On Workflows Day 3 Lab
+26m
+Assignments
+Structured Streaming Kafka to Delta Live Table Assignment
+Stock Market Streaming Assigment
+Spark Streaming W5 Homework January 2025
+
+6
+Week 5: Managing Unstructured Data
+8 Lessons
+•
+4h 36m
+1 Assignment
+Lessons
+Managing Unstructured Data - Day 1 Lecture
+Managing Unstructured Data - Day 1 Lab
+Managing Unstructured Data - Day 2 Lecture
+Managing Unstructured Data - Day 2 Lab
+48m
+Managing Unstructured Data Day1 Lecture
+58m
+Managing Unstructured Data Day1 Lab
+47m
+Managing Unstructured Data Day2 Lecture
+65m
+Managing Unstructured Data Day2 Lab
+56m
+Assignments
+Managing Unstructured Data Assignment
+
+7
+Week 6: Building AI Agents with Databricks
+5 Lessons
+•
+3h 50m
+Lessons
+Building AI Agents with Databricks Day1 Lecture
+46m
+Building AI Agents with Databricks Day1 Lab
+58m
+Building AI Agents with Databricks Day2 Lecture
+63m
+Building AI Agents with Databricks Day2 Lab
+51m
+Enhancements and Implementations in MLflow
+11m
+
+8
+Capstone Project
+2 Lessons
+•
+2h 1m
+6 Assignments
+Lessons
+Capstone May 2025
+Capstone Showcase Jan 2025
+121m
+Assignments
+Capstone Submission January 2025
+Capstone Project Proposal
+Capstone Project Submission
+Capstone Proposal Submission Jan 2025 Bootcamp
+Capstone Proposal DE Bootcamp May 2025
+Capstone Project DE Bootcamp May 2025
+
+9
+Q&A with Zach
+15 Lessons
+•
+10h 42m
+Lessons
+Q&A Week 1
+46m
+Q&A Week 2
+41m
+Q&A Week 3
+24m
+Q&A Week 4
+42m
+Q&A with Zach Week 1
+51m
+Q&A with Zach Week 2
+Q&A with Zach Week 3
+Q&A with Zach Week 4
+59m
+Q&A with Zach Week 5
+53m
+Navigating Data Engineering -Tips, Tools, and Career Insights
+56m
+Q&A with Zach Week1
+56m
+Q&A with Zach Week2
+56m
+Q&A with Zach Week3
+42m
+Q&A with Zach Week4
+55m
+Q&A with Zach Week5
+57m
+
+10
+Bonus - Azure
+5 Lessons
+•
+5h 37m
+Lessons
+Azure - Week 1 (Copy)
+76m
+Azure - Week 2 (Copy)
+74m
+Azure - Week 3 (Copy)
+69m
+Azure - Week 4 (Copy)
+65m
+Azure - Week 5 (Copy)
+51m
+
+11
+Expert Guest Sessions
+15 Lessons
+•
+11h 28m
+Lessons
+Alex Merced - Head of DevRel at Dremio
+57m
+Joe Reis - Author of Fundamentals of Data Engineering
+Shubham Srivastava - Senior Data Engineer at Amazon (2025-06-24)
+Vaishali Macwan - Senior Data Scientist at Amazon
+Jason Reid - Co-founder at Tabular
+59m
+Shubham Srivastava - Senior Data Engineer at Amazon (02-01-2026)
+59m
+Brian Pulliam - Career Development Coach
+65m
+Xinran Waibel - Data Engineer at OpenAI
+60m
+Jason Reid - Co-Founder at Tabular (2.0)
+57m
+Shachar Meir - Data Advisor and Public Speaker
+53m
+Brian Pulliam - Career Developement Coach (2.0)
+61m
+Sundas Khalid - Principal Analytics Lead at Google
+58m
+Yuzheng Sun - Staff Data Scientist at Statsig
+59m
+Prasad Rao - Principal Solutions Architect
+54m
+Joe Reis - Author of Fundamentals of Data Engineering (2.0)
+41m
